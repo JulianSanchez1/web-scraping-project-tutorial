@@ -1,12 +1,9 @@
-
-import os
-from bs4 import BeautifulSoup
 import requests
-import time
+from bs4 import BeautifulSoup
+import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
 
 resource_url = "https://ycharts.com/companies/TSLA/revenues"
 
@@ -56,17 +53,26 @@ class Scraping:
         if tables:
             columns, data = self.extract_table_data(tables[0])
             df = pd.DataFrame(data, columns=columns)
-            print("DataFrame head:\n", df.head()) 
+            print("DataFrame head:\n", df.head())
             return df
         else:
             raise ValueError("No tables found on the page.")
 
     def clean_dataframe(self, df):
-        for col in df.columns:
-            if df[col].dtype == 'object':
-                df[col] = df[col].replace('[\$,]', '', regex=True)
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+        print("Raw DataFrame before cleaning:\n", df.head())
+
+        df['Value'] = df['Value'].replace('[\$,B]', '', regex=True)
+        df['Value'] = df['Value'].str.replace(',', '')
+        df['Value'] = pd.to_numeric(df['Value'], errors='coerce')
+        
+        print("DataFrame after removing $, B, and commas:\n", df.head())
+
         df.dropna(inplace=True)
+
+        print("Cleaned DataFrame head:\n", df.head())
+
+        df.rename(columns={'Value': 'Revenue'}, inplace=True)
+
         return df
 
     def store_data_in_sqlite(self, df, db_name='tesla_revenues.db'):
@@ -116,7 +122,6 @@ class Scraping:
         except Exception as e:
             print(f"Error during visualization: {e}")
 
-
 sc = Scraping(resource_url, headers)
 sc.download()
 df = sc.to_dataframe()
@@ -124,5 +129,7 @@ df = sc.to_dataframe()
 
 df_cleaned = sc.clean_dataframe(df)
 print("Cleaned DataFrame head:\n", df_cleaned.head())
+
 sc.store_data_in_sqlite(df_cleaned)
+
 sc.plot_visualizations(df_cleaned)
